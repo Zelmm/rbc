@@ -7,7 +7,7 @@ import java.util.List;
 public interface AbstractKafkaService<T extends AbstractDto> {
     T save(T dto);
 
-    void send(T dto);
+    void send(int id, boolean isValidAmount);
 
     void consume(T dto);
 

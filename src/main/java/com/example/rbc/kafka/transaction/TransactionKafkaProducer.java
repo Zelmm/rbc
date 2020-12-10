@@ -11,13 +11,13 @@ import org.springframework.kafka.support.converter.StringJsonMessageConverter;
 public class TransactionKafkaProducer extends AbstractKafkaProducer {
 
     @Bean
-    public ProducerFactory<Long, TransactionDTO> producerTransactionFactory() {
+    public ProducerFactory<Long, String> producerTransactionFactory() {
         return new DefaultKafkaProducerFactory<>(producerConfigs());
     }
 
     @Bean
-    public KafkaTemplate<Long, TransactionDTO> kafkaTemplate() {
-        KafkaTemplate<Long, TransactionDTO> template = new KafkaTemplate<>(producerTransactionFactory());
+    public KafkaTemplate<Long, String> kafkaTemplate() {
+        KafkaTemplate<Long, String> template = new KafkaTemplate<>(producerTransactionFactory());
         template.setMessageConverter(new StringJsonMessageConverter());
         return template;
     }

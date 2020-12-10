@@ -1,6 +1,7 @@
-package com.example.rbc.service;
+package com.example.rbc.service.transaction;
 
 import com.example.rbc.dto.TransactionDTO;
+import com.example.rbc.service.AbstractKafkaService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -15,17 +16,20 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-public class TransactionKafkaService implements AbstractKafkaService<TransactionDTO>{
+public class TransactionKafkaService implements AbstractKafkaService<TransactionDTO> {
 
-    private final KafkaTemplate<Long, TransactionDTO> kafkaTransactionTemplate;
+    private final KafkaTemplate<Long, String> kafkaTransactionTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final String transactionReportTopic;
+    private final TransactionService transactionService;
 
     @Autowired
-    public TransactionKafkaService(KafkaTemplate<Long, TransactionDTO> kafkaTransactionTemplate,
-                                   @Value("${kafka.topics.rbc.transactions.report}") String transactionReportTopic) {
+    public TransactionKafkaService(KafkaTemplate<Long, String> kafkaTransactionTemplate,
+                                   @Value("${kafka.topics.rbc.transactions.report}") String transactionReportTopic,
+                                   TransactionService transactionService) {
         this.kafkaTransactionTemplate = kafkaTransactionTemplate;
         this.transactionReportTopic = transactionReportTopic;
+        this.transactionService = transactionService;
     }
 
     @Override
@@ -34,16 +38,18 @@ public class TransactionKafkaService implements AbstractKafkaService<Transaction
     }
 
     @Override
-    public void send(TransactionDTO dto) {
-        log.info("<= sending {}", writeValueAsString(dto));
-        kafkaTransactionTemplate.send(transactionReportTopic, dto);
+    public void send(int id, boolean isValidAmount) {
+        log.info("transaction: {}, valid:{}", id, isValidAmount);
+        kafkaTransactionTemplate.send(transactionReportTopic, String.format("transaction: %s, valid:%s", id, isValidAmount));
     }
 
     @Override
     @KafkaListener(id = "Transaction", topics = {"rbc-transactions"}, containerFactory = "singleFactory")
     public void consume(TransactionDTO dto) {
         log.info("=> consumed {}", writeValueAsString(dto));
-        //сравнить с дто из базы
+        var id = dto.getId();
+        var dtoFromEntity = transactionService.getDtoById(id);
+        send(id, dto.getPAmount() == dtoFromEntity.getPAmount());
     }
 
     @Override
@@ -53,7 +59,15 @@ public class TransactionKafkaService implements AbstractKafkaService<Transaction
                 "; ",
                 dtos.stream().map(this::writeValueAsString).collect(Collectors.toList())
         ));
-        //сравнить с дто из базы
+        var ids = dtos.stream().map(TransactionDTO::getId).collect(Collectors.toList());
+        var dtosFromEntity = transactionService.getStoListByIds(ids)
+                .stream()
+                .collect(Collectors.toMap(transactionDTO -> transactionDTO.getId(), transactionDTO -> transactionDTO));
+
+        for (var dto : dtos) {
+            var id = dto.getId();
+            send(id, dto.getPAmount() == dtosFromEntity.get(id).getPAmount());
+        }
     }
 
 

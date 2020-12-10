@@ -1,0 +1,10 @@
+version: '3.7'
+
+services:
+  rbc-db:
+    ports:
+      - "5433:5432"
+    image: postgres:13
+    environment:
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
