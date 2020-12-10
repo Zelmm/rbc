@@ -1,13 +1,14 @@
 package com.example.rbc.kafka.transaction;
 
-import com.example.rbc.dto.TransactionDTO;
 import com.example.rbc.kafka.AbstractKafkaProducer;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.kafka.support.converter.StringJsonMessageConverter;
 
+@Configuration
 public class TransactionKafkaProducer extends AbstractKafkaProducer {
 
     @Bean
@@ -17,8 +18,8 @@ public class TransactionKafkaProducer extends AbstractKafkaProducer {
 
     @Bean
     public KafkaTemplate<Long, String> kafkaTemplate() {
-        KafkaTemplate<Long, String> template = new KafkaTemplate<>(producerTransactionFactory());
-        template.setMessageConverter(new StringJsonMessageConverter());
-        return template;
+        KafkaTemplate<Long, String> kafkaTemplate = new KafkaTemplate<>(producerTransactionFactory());
+        kafkaTemplate.setMessageConverter(new StringJsonMessageConverter());
+        return kafkaTemplate;
     }
 }

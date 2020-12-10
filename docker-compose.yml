@@ -3,8 +3,26 @@ version: '3.7'
 services:
   rbc-db:
     ports:
-      - "5433:5432"
+      - 5433:5432
     image: postgres:13
     environment:
       POSTGRES_USER: "postgres"
       POSTGRES_PASSWORD: "postgres"
+
+  kafka:
+    image: wurstmeister/kafka
+    ports:
+      - 9092:9092
+    environment:
+      KAFKA_LISTENERS: PLAINTEXT://:9092
+      KAFKA_ADVERTISED_HOST_NAME: localhost
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_CREATE_TOPICS: "rbc-transactions:1:1,rbc-transactions-report:1:1"
+    depends_on:
+      - zookeeper
+
+  zookeeper:
+    image: wurstmeister/zookeeper
+    hostname: zookeeper
+    ports:
+      - 2181:2181

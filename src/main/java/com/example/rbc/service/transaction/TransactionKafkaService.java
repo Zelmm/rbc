@@ -19,16 +19,16 @@ import java.util.stream.Collectors;
 public class TransactionKafkaService implements AbstractKafkaService<TransactionDTO> {
 
     private final KafkaTemplate<Long, String> kafkaTransactionTemplate;
-    private final ObjectMapper objectMapper = new ObjectMapper();
-    private final String transactionReportTopic;
     private final TransactionService transactionService;
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Value("${kafka.topics.rbc.transactions.report}")
+    private String transactionReportTopic;
 
     @Autowired
     public TransactionKafkaService(KafkaTemplate<Long, String> kafkaTransactionTemplate,
-                                   @Value("${kafka.topics.rbc.transactions.report}") String transactionReportTopic,
                                    TransactionService transactionService) {
         this.kafkaTransactionTemplate = kafkaTransactionTemplate;
-        this.transactionReportTopic = transactionReportTopic;
         this.transactionService = transactionService;
     }
 
@@ -53,16 +53,13 @@ public class TransactionKafkaService implements AbstractKafkaService<Transaction
     }
 
     @Override
-    @KafkaListener(id = "Transaction", topics = {"rbc-transactions"}, containerFactory = "batchFactory")
+    @KafkaListener(id = "Transactions", topics = {"rbc-transactions"}, containerFactory = "batchFactory")
     public void consumeBatch(List<TransactionDTO> dtos) {
-        log.info("=> consumed {}", String.join(
-                "; ",
-                dtos.stream().map(this::writeValueAsString).collect(Collectors.toList())
-        ));
+        log.info("=> consumed {}", dtos.stream().map(this::writeValueAsString).collect(Collectors.joining("; ")));
         var ids = dtos.stream().map(TransactionDTO::getId).collect(Collectors.toList());
         var dtosFromEntity = transactionService.getStoListByIds(ids)
                 .stream()
-                .collect(Collectors.toMap(transactionDTO -> transactionDTO.getId(), transactionDTO -> transactionDTO));
+                .collect(Collectors.toMap(TransactionDTO::getId, transactionDTO -> transactionDTO));
 
         for (var dto : dtos) {
             var id = dto.getId();
