@@ -24,7 +24,7 @@ public class TransactionService {
         return converter.convertEntityToDto(repository.getOne(id));
     }
 
-    public List<TransactionDTO> getStoListByIds(@Param("ids") List<Integer> ids) {
+    public List<TransactionDTO> getDtoListByIds(@Param("ids") List<Integer> ids) {
         return converter.convertAllEntityToDtos(repository.getAllByIds(ids));
     }
 

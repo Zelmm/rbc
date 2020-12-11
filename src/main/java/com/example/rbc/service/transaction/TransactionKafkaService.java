@@ -11,12 +11,14 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-public class TransactionKafkaService implements AbstractKafkaService<TransactionDTO> {
+public class TransactionKafkaService implements AbstractKafkaService {
 
     private final KafkaTemplate<Long, String> kafkaTransactionTemplate;
     private final TransactionService transactionService;
@@ -33,47 +35,48 @@ public class TransactionKafkaService implements AbstractKafkaService<Transaction
     }
 
     @Override
-    public TransactionDTO save(TransactionDTO dto) {
-        return null;
-    }
-
-    @Override
     public void send(int id, boolean isValidAmount) {
         log.info("transaction: {}, valid:{}", id, isValidAmount);
         kafkaTransactionTemplate.send(transactionReportTopic, String.format("transaction: %s, valid:%s", id, isValidAmount));
     }
 
     @Override
-    @KafkaListener(id = "Transaction", topics = {"rbc-transactions"}, containerFactory = "singleFactory")
-    public void consume(TransactionDTO dto) {
-        log.info("=> consumed {}", writeValueAsString(dto));
-        var id = dto.getId();
-        var dtoFromEntity = transactionService.getDtoById(id);
-        send(id, dto.getPAmount() == dtoFromEntity.getPAmount());
-    }
+    @KafkaListener(id = "Transaction", topics = {"rbc-transactions"}, containerFactory = "batchFactory")
+    public void consume(String dtoString) {
+        var dtoList = getTransactionsFromString(dtoString);
+        log.info("=> consumed {}", dtoList);
 
-    @Override
-    @KafkaListener(id = "Transactions", topics = {"rbc-transactions"}, containerFactory = "batchFactory")
-    public void consumeBatch(List<TransactionDTO> dtos) {
-        log.info("=> consumed {}", dtos.stream().map(this::writeValueAsString).collect(Collectors.joining("; ")));
-        var ids = dtos.stream().map(TransactionDTO::getId).collect(Collectors.toList());
-        var dtosFromEntity = transactionService.getStoListByIds(ids)
+        var ids = dtoList
+                .stream()
+                .map(TransactionDTO::getId)
+                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()))
+                .entrySet()
+                .stream()
+                .filter(e -> e.getValue() == 1)
+                .map(e -> e.getKey())
+                .collect(Collectors.toList());
+
+        var dtosFromEntity = transactionService.getDtoListByIds(ids)
                 .stream()
                 .collect(Collectors.toMap(TransactionDTO::getId, transactionDTO -> transactionDTO));
 
-        for (var dto : dtos) {
+        for (var dto : dtoList) {
             var id = dto.getId();
-            send(id, dto.getPAmount() == dtosFromEntity.get(id).getPAmount());
+            if (dtosFromEntity.containsKey(id)) {
+                send(id, dto.getPAmount() == dtosFromEntity.get(id).getPAmount());
+            }
         }
     }
 
-
-    private String writeValueAsString(TransactionDTO dto) {
+    private List<TransactionDTO> getTransactionsFromString(String dtos) {
+        List<TransactionDTO> result;
         try {
-            return objectMapper.writeValueAsString(dto);
+            result = objectMapper.readValue(dtos, objectMapper.getTypeFactory().constructCollectionType(List.class, TransactionDTO.class));
         } catch (JsonProcessingException e) {
             e.printStackTrace();
-            throw new RuntimeException("Writing value to JSON failed: " + dto.toString());
+            log.error("Can't read TransactionDTO from string: {}", dtos);
+            result = Collections.emptyList();
         }
+        return result;
     }
 }
